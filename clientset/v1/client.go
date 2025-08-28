@@ -71,7 +71,7 @@ func (c *websiteClient) Create(ctx context.Context, website *wsapiv1.WebSite, op
 	err := c.restClient.
 		Post().
 		Namespace(c.ns).
-		Resource("projects").
+		Resource("websites").
 		Body(website).
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Do(ctx).
@@ -84,7 +84,7 @@ func (c *websiteClient) Delete(ctx context.Context, name string, opts metav1.Del
 	err := c.restClient.
 		Delete().
 		Namespace(c.ns).
-		Resource("projects").
+		Resource("websites").
 		Name(name).
 		Body(&opts).
 		Do(ctx).
