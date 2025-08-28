@@ -22,7 +22,7 @@ func NewRouter(handler WebsiteHandler) *gin.Engine {
 		api.GET("/websites", handler.List)
 		api.POST("/websites", handler.Create)
 		//api.PUT("/websites", handler.Update)
-		//api.DELETE("/websites", handler.Delete)
+		api.DELETE("/websites/:name", handler.Delete)
 	}
 
 	return r
@@ -100,6 +100,17 @@ func (h *WebsiteHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, mapKubeWebsiteToDTO(newSite))
 }
 
+func (h *WebsiteHandler) Delete(c *gin.Context) {
+	err := h.kubeClient.Websites("default").Delete(c.Request.Context(), c.Param("name"), metav1.DeleteOptions{})
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusAccepted)
+}
+
 type WebsiteListDTO []*WebsiteDTO
 
 type WebsiteDTO struct {
@@ -143,5 +154,5 @@ func main() {
 	}
 
 	router := NewRouter(handler)
-	panic(router.Run(":8080"))
+	panic(router.Run(":8082"))
 }
