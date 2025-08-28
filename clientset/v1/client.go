@@ -44,6 +44,7 @@ type WebsiteInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*wsapiv1.WebSiteList, error)
 	Get(ctx context.Context, name string, opts metav1.GetOptions) (*wsapiv1.WebSite, error)
 	Create(ctx context.Context, site *wsapiv1.WebSite, opts metav1.CreateOptions) (*wsapiv1.WebSite, error)
+	Update(ctx context.Context, site *wsapiv1.WebSite, opts metav1.UpdateOptions) (*wsapiv1.WebSite, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 }
 
@@ -74,6 +75,21 @@ func (c *websiteClient) Create(ctx context.Context, website *wsapiv1.WebSite, op
 		Resource("websites").
 		Body(website).
 		VersionedParams(&opts, scheme.ParameterCodec).
+		Do(ctx).
+		Into(&result)
+
+	return &result, err
+}
+
+func (c *websiteClient) Update(ctx context.Context, website *wsapiv1.WebSite, opts metav1.UpdateOptions) (*wsapiv1.WebSite, error) {
+	result := wsapiv1.WebSite{}
+	err := c.restClient.
+		Put().
+		Namespace(c.ns).
+		Resource("websites").
+		Name(website.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(website).
 		Do(ctx).
 		Into(&result)
 
