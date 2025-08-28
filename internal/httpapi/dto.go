@@ -6,45 +6,40 @@ import (
 	"time"
 )
 
+// WebsiteListDTO represents a list of websites.
 type WebsiteListDTO []*WebsiteDTO
 
-type WebsiteDTO struct {
-	Name        string `json:"name"`
+// WebsiteBase contains the common fields for all Website DTOs.
+type WebsiteBase struct {
 	HtmlContent string `json:"htmlContent"`
 	Hostname    string `json:"hostname"`
 	NginxImage  string `json:"nginxImage"`
+}
 
+// WebsiteDTO is the full website model returned by the API.
+type WebsiteDTO struct {
+	WebsiteBase
+
+	Name              string            `json:"name"`
 	Labels            map[string]string `json:"labels"`
 	Generation        int64             `json:"generation"`
 	CreationTimestamp time.Time         `json:"creationTimestamp"`
 }
 
+// WebsiteCreateDTO is used to create a new website.
 type WebsiteCreateDTO struct {
-	Name        string `json:"name"`
-	HtmlContent string `json:"htmlContent"`
-	Hostname    string `json:"hostname"`
-	NginxImage  string `json:"nginxImage"`
+	WebsiteBase
+	Name string `json:"name"`
 }
 
-func (w *WebsiteCreateDTO) Validate() error {
-	// TODO deduplicate models and validation
-	if !strings.HasPrefix(w.NginxImage, "docker.io/nginx:") {
-		return fmt.Errorf("nginx image '%s' is invalid. must start with 'docker.io/nginx:'", w.NginxImage)
-	}
-	return nil
-}
-
-func (w *WebsiteUpdateDTO) Validate() error {
-	// TODO deduplicate models and validation
-
-	if !strings.HasPrefix(w.NginxImage, "docker.io/nginx:") {
-		return fmt.Errorf("nginx image '%s' is invalid. must start with 'docker.io/nginx:'", w.NginxImage)
-	}
-	return nil
-}
-
+// WebsiteUpdateDTO is used to update an existing website.
 type WebsiteUpdateDTO struct {
-	HtmlContent string `json:"htmlContent"`
-	Hostname    string `json:"hostname"`
-	NginxImage  string `json:"nginxImage"`
+	WebsiteBase
+}
+
+func (w *WebsiteBase) Validate() error {
+	if !strings.HasPrefix(w.NginxImage, "docker.io/nginx:") {
+		return fmt.Errorf("nginx image '%s' is invalid. must start with 'docker.io/nginx:'", w.NginxImage)
+	}
+	return nil
 }
