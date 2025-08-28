@@ -1,0 +1,8 @@
+apiVersion: "anexia.com/v1"
+kind: WebSite
+metadata:
+  name: hello
+spec:
+  hostname: "hello.minikube.local"
+  nginxImage: "docker.io/nginx:1.28"
+  htmlContent: "<html><body><p>hello from the website created with a CRD and a controller!</p></body></html>"
