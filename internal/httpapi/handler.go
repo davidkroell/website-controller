@@ -4,6 +4,7 @@ import (
 	"net/http"
 	wsapiv1 "website-operator/api/v1"
 	"website-operator/clientset/v1"
+	"website-operator/httpapiclient"
 
 	"github.com/gin-gonic/gin"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,7 +54,7 @@ func (h *WebsiteHandler) List(c *gin.Context) {
 }
 
 func (h *WebsiteHandler) Create(c *gin.Context) {
-	var dto WebsiteCreateDTO
+	var dto httpapiclient.WebsiteCreateDTO
 	if err := c.ShouldBindJSON(&dto); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -106,7 +107,7 @@ func (h *WebsiteHandler) Update(c *gin.Context) {
 		return
 	}
 
-	var dto WebsiteUpdateDTO
+	var dto httpapiclient.WebsiteUpdateDTO
 	if err := c.ShouldBindJSON(&dto); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

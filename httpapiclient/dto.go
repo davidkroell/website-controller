@@ -1,4 +1,4 @@
-package httpapi
+package httpapiclient
 
 import (
 	"fmt"
