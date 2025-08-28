@@ -25,5 +25,8 @@ func main() {
 	handler := httpapi.NewWebsiteHandler(clientSet)
 
 	router := httpapi.NewRouter(handler)
-	panic(router.Run(":8082"))
+
+	addr := internal.FromEnvWithDefault("HTTPAPI_LISTEN_ADDR", ":8082")
+
+	panic(router.Run(addr))
 }
