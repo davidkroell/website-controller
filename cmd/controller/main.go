@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	wsapiv1 "website-operator/api/v1"
+	"website-operator/internal"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,9 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -232,7 +228,7 @@ func getDeploymentObject(name string, spec wsapiv1.WebSiteSpec) *appsv1.Deployme
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: int32Ptr(1), // TODO replicas
+			Replicas: ptr(int32(1)), // TODO replicas
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"apptype": "website",
@@ -298,28 +294,8 @@ func getConfigMapObject(name, contents string) *corev1.ConfigMap {
 	}
 }
 
-func int32Ptr(i int32) *int32 { return &i }
-
 func main() {
-	var (
-		config *rest.Config
-		err    error
-	)
-	kubeconfigFilePath := filepath.Join(homedir.HomeDir(), ".kube", "config")
-	if _, err := os.Stat(kubeconfigFilePath); errors.Is(err, os.ErrNotExist) { // if kube config doesn't exist, try incluster config
-		config, err = rest.InClusterConfig()
-		if err != nil {
-			panic(err.Error())
-		}
-	} else {
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfigFilePath)
-		if err != nil {
-			panic(err.Error())
-		}
-	}
-
-	// kubernetes client set
-	clientset, err := kubernetes.NewForConfig(config)
+	clientset, config, err := internal.GetLocalOrInClusterKubernetes()
 	if err != nil {
 		panic(err.Error())
 	}
