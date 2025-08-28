@@ -1,0 +1,28 @@
+### list
+GET http://localhost:8082/api/websites
+
+
+### create
+POST http://localhost:8082/api/websites
+Content-Type: application/json
+
+{
+  "name": "from-golang-webclient",
+  "hostname": "a.minikube.local",
+  "htmlContent": "<p>from golang webclient<p>",
+  "nginxImage": "docker.io/nginx:1.28"
+}
+
+
+### update
+PUT http://localhost:8082/api/websites/from-golang-webclient
+Content-Type: application/json
+
+{
+  "hostname": "b.minikube.local",
+  "htmlContent": "<p>updated via PUT request!!!<p>",
+  "nginxImage": "docker.io/nginx:1.28"
+}
+
+### delete
+DELETE http://localhost:8082/api/websites/from-golang-webclient

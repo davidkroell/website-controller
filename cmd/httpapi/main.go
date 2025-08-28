@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -21,7 +22,7 @@ func NewRouter(handler WebsiteHandler) *gin.Engine {
 	{
 		api.GET("/websites", handler.List)
 		api.POST("/websites", handler.Create)
-		//api.PUT("/websites", handler.Update)
+		api.PUT("/websites/:name", handler.Update)
 		api.DELETE("/websites/:name", handler.Delete)
 	}
 
@@ -72,8 +73,8 @@ func (h *WebsiteHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if !strings.HasPrefix(dto.NginxImage, "docker.io/nginx:") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "nginx image is invalid"})
+	if err := dto.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -111,6 +112,38 @@ func (h *WebsiteHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
+func (h *WebsiteHandler) Update(c *gin.Context) {
+	website, err := h.kubeClient.Websites("default").Get(c.Request.Context(), c.Param("name"), metav1.GetOptions{})
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var dto WebsiteUpdateDTO
+	if err := c.ShouldBindJSON(&dto); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := dto.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	website.Spec.HtmlContent = dto.HtmlContent
+	website.Spec.Hostname = dto.Hostname
+	website.Spec.NginxImage = dto.NginxImage
+
+	site, err := h.kubeClient.Websites("default").Update(c.Request.Context(), website, metav1.UpdateOptions{})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, mapKubeWebsiteToDTO(site))
+}
+
 type WebsiteListDTO []*WebsiteDTO
 
 type WebsiteDTO struct {
@@ -129,6 +162,23 @@ type WebsiteCreateDTO struct {
 	HtmlContent string `json:"htmlContent"`
 	Hostname    string `json:"hostname"`
 	NginxImage  string `json:"nginxImage"`
+}
+
+func (w *WebsiteCreateDTO) Validate() error {
+	// TODO deduplicate models and validation
+	if !strings.HasPrefix(w.NginxImage, "docker.io/nginx:") {
+		return fmt.Errorf("nginx image '%s' is invalid. must start with 'docker.io/nginx:'", w.NginxImage)
+	}
+	return nil
+}
+
+func (w *WebsiteUpdateDTO) Validate() error {
+	// TODO deduplicate models and validation
+
+	if !strings.HasPrefix(w.NginxImage, "docker.io/nginx:") {
+		return fmt.Errorf("nginx image '%s' is invalid. must start with 'docker.io/nginx:'", w.NginxImage)
+	}
+	return nil
 }
 
 type WebsiteUpdateDTO struct {
