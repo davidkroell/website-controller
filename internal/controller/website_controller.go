@@ -21,14 +21,14 @@ import (
 type WebsiteController struct {
 	client.Client
 	scheme     *runtime.Scheme
-	kubeClient *kubernetes.Clientset
+	kubeClient kubernetes.Interface
 }
 
-func NewWebsiteController(mgr manager.Manager, clientset *kubernetes.Clientset) *WebsiteController {
+func NewWebsiteController(mgr manager.Manager, kubeClient kubernetes.Interface) *WebsiteController {
 	return &WebsiteController{
 		Client:     mgr.GetClient(),
 		scheme:     mgr.GetScheme(),
-		kubeClient: clientset,
+		kubeClient: kubeClient,
 	}
 }
 
