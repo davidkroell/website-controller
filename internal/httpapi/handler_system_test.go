@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 	"website-operator/httpapiclient"
@@ -22,7 +23,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	m.Run()
+	os.Exit(m.Run())
 }
 
 func TestSystem_CreateListUpdateDeleteWebsite(t *testing.T) {
