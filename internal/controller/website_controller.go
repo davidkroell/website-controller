@@ -111,7 +111,8 @@ func (r *WebsiteController) ensureDeployment(ctx context.Context, req ctrl.Reque
 	log := log.FromContext(ctx)
 	deploymentsClient := r.kubeClient.AppsV1().Deployments(req.Namespace)
 
-	deployment, err := deploymentsClient.Get(ctx, DeploymentObjectName(siteName), metav1.GetOptions{})
+	deploymentName := DeploymentObjectName(siteName)
+	deployment, err := deploymentsClient.Get(ctx, deploymentName, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) {
 		deploymentObj := CreateDeploymentObject(siteName, website.Spec)
 		_, err := deploymentsClient.Create(ctx, deploymentObj, metav1.CreateOptions{})
@@ -119,7 +120,7 @@ func (r *WebsiteController) ensureDeployment(ctx context.Context, req ctrl.Reque
 			return fmt.Errorf("couldn't create deployment: %s", err)
 		}
 
-		log.Info("new deployment created for website")
+		log.Info("new deployment created for website", "deploymentName", deploymentName)
 		return nil
 	}
 
@@ -149,7 +150,8 @@ func (r *WebsiteController) ensureConfigMap(ctx context.Context, req ctrl.Reques
 	cmClient := r.kubeClient.CoreV1().ConfigMaps(req.Namespace)
 
 	// look up config map differences in HTML contents
-	confMap, err := cmClient.Get(ctx, ConfigMapObjectName(siteName), metav1.GetOptions{})
+	cmName := ConfigMapObjectName(siteName)
+	confMap, err := cmClient.Get(ctx, cmName, metav1.GetOptions{})
 
 	if err != nil && errors.IsNotFound(err) {
 		cmObj := CreateConfigMapObject(siteName, website.Spec)
@@ -157,7 +159,7 @@ func (r *WebsiteController) ensureConfigMap(ctx context.Context, req ctrl.Reques
 		if err != nil && !errors.IsAlreadyExists(err) {
 			return fmt.Errorf("couldn't create configmap: %s", err)
 		}
-		log.Info("new configmap created for website")
+		log.Info("new configmap created for website", "configMapName", cmName)
 		return nil
 	}
 
@@ -183,7 +185,8 @@ func (r *WebsiteController) ensureService(ctx context.Context, req ctrl.Request)
 
 	svcClient := r.kubeClient.CoreV1().Services(req.Namespace)
 
-	_, err := svcClient.Get(ctx, ServiceObjectName(siteName), metav1.GetOptions{})
+	serviceObjectName := ServiceObjectName(siteName)
+	_, err := svcClient.Get(ctx, serviceObjectName, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) {
 		svcObject := CreateServiceObject(siteName)
 		svcObject, err = svcClient.Create(ctx, svcObject, metav1.CreateOptions{})
@@ -191,7 +194,7 @@ func (r *WebsiteController) ensureService(ctx context.Context, req ctrl.Request)
 			return fmt.Errorf("couldn't create service: %s", err)
 		}
 
-		log.Info("new service created for website")
+		log.Info("new service created for website", "serviceObjectName", serviceObjectName)
 		return nil
 	}
 
@@ -206,7 +209,8 @@ func (r *WebsiteController) ensureIngress(ctx context.Context, req ctrl.Request,
 
 	ingressClient := r.kubeClient.NetworkingV1().Ingresses(req.Namespace)
 
-	ingress, err := ingressClient.Get(ctx, IngressObjectName(siteName), metav1.GetOptions{})
+	ingressObjectName := IngressObjectName(siteName)
+	ingress, err := ingressClient.Get(ctx, ingressObjectName, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) {
 		ingressObject := CreateIngressObj(siteName, website.Spec)
 		ingressObject, err = ingressClient.Create(ctx, ingressObject, metav1.CreateOptions{})
@@ -214,7 +218,7 @@ func (r *WebsiteController) ensureIngress(ctx context.Context, req ctrl.Request,
 			return fmt.Errorf("couldn't create ingress: %s", err)
 		}
 
-		log.Info("new ingress created for website, exposed now via hostname", "hostname", website.Spec.Hostname)
+		log.Info("new ingress created for website, exposed now via hostname", "hostname", website.Spec.Hostname, "ingressObjectName", ingressObjectName)
 
 		return nil
 	}
@@ -231,7 +235,12 @@ func (r *WebsiteController) ensureIngress(ctx context.Context, req ctrl.Request,
 }
 
 func (r *WebsiteController) ensureIngressSpec(ingress *netv1.Ingress, website *webv1.WebSite) bool {
-	needsUpdate := ingress.Spec.Rules[0].Host != website.Spec.Hostname
+	needsUpdate := ingress.Spec.Rules == nil || (ingress.Spec.Rules[0].Host != website.Spec.Hostname)
+
+	if ingress.Spec.Rules == nil || len(ingress.Spec.Rules) == 0 {
+		ingress.Spec.Rules = make([]netv1.IngressRule, 1)
+	}
+
 	ingress.Spec.Rules[0].Host = website.Spec.Hostname
 	return needsUpdate
 }
