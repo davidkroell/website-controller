@@ -2,7 +2,7 @@ package httpapi
 
 import (
 	"net/http"
-	wsapiv1 "website-operator/api/v1"
+	webv1 "website-operator/api/v1"
 	"website-operator/clientset/v1"
 	"website-operator/httpapiclient"
 
@@ -65,7 +65,7 @@ func (h *WebsiteHandler) Create(c *gin.Context) {
 		return
 	}
 
-	newSite, err := h.kubeClient.Websites("default").Create(c.Request.Context(), &wsapiv1.WebSite{
+	newSite, err := h.kubeClient.Websites("default").Create(c.Request.Context(), &webv1.WebSite{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "WebSite",
 			APIVersion: "anexia.com/v1",
@@ -73,7 +73,7 @@ func (h *WebsiteHandler) Create(c *gin.Context) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dto.Name,
 		},
-		Spec: wsapiv1.WebSiteSpec{
+		Spec: webv1.WebSiteSpec{
 			HtmlContent: dto.HtmlContent,
 			Hostname:    dto.Hostname,
 			NginxImage:  dto.NginxImage,

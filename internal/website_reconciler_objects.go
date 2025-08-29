@@ -1,7 +1,7 @@
 package internal
 
 import (
-	wsapiv1 "website-operator/api/v1"
+	webv1 "website-operator/api/v1"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -35,7 +35,7 @@ func ConfigMapObjectName(siteName string) string {
 	return siteName + "-cm"
 }
 
-func CreateIngressObj(name string, spec wsapiv1.WebSiteSpec) *netv1.Ingress {
+func CreateIngressObj(name string, spec webv1.WebSiteSpec) *netv1.Ingress {
 	return &netv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: IngressObjectName(name),
@@ -94,7 +94,7 @@ func CreateServiceObject(name string) *corev1.Service {
 	}
 }
 
-func CreateDeploymentObject(name string, spec wsapiv1.WebSiteSpec) *appsv1.Deployment {
+func CreateDeploymentObject(name string, spec webv1.WebSiteSpec) *appsv1.Deployment {
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: DeploymentObjectName(name),
@@ -151,7 +151,7 @@ func CreateDeploymentObject(name string, spec wsapiv1.WebSiteSpec) *appsv1.Deplo
 	}
 }
 
-func CreateConfigMapObject(name string, spec wsapiv1.WebSiteSpec) *corev1.ConfigMap {
+func CreateConfigMapObject(name string, spec webv1.WebSiteSpec) *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ConfigMap",

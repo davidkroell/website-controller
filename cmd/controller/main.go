@@ -2,7 +2,7 @@ package main
 
 import (
 	"os"
-	wsapiv1 "website-operator/api/v1"
+	webv1 "website-operator/api/v1"
 	"website-operator/internal"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,7 +21,7 @@ func main() {
 
 	scheme := runtime.NewScheme()
 	log := ctrl.Log.WithName("setup website controller")
-	utilruntime.Must(wsapiv1.AddToScheme(scheme))
+	utilruntime.Must(webv1.AddToScheme(scheme))
 
 	mgr, err := ctrl.NewManager(config, ctrl.Options{
 		Scheme: scheme,
@@ -32,7 +32,7 @@ func main() {
 	}
 
 	err = ctrl.NewControllerManagedBy(mgr).
-		For(&wsapiv1.WebSite{}).
+		For(&webv1.WebSite{}).
 		Complete(internal.NewWebsiteReconciler(mgr, clientset))
 	if err != nil {
 		log.Error(err, "unable to create controller")

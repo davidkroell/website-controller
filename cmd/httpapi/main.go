@@ -1,8 +1,8 @@
 package main
 
 import (
-	wsapiv1 "website-operator/api/v1"
-	wsapiv1Client "website-operator/clientset/v1"
+	webv1 "website-operator/api/v1"
+	webv1client "website-operator/clientset/v1"
 	"website-operator/internal"
 	"website-operator/internal/httpapi"
 
@@ -16,8 +16,8 @@ func main() {
 		panic(err.Error())
 	}
 
-	runtime.Must(wsapiv1.AddToScheme(scheme.Scheme))
-	clientSet, err := wsapiv1Client.NewForConfig(config)
+	runtime.Must(webv1.AddToScheme(scheme.Scheme))
+	clientSet, err := webv1client.NewForConfig(config)
 	if err != nil {
 		panic(err)
 	}

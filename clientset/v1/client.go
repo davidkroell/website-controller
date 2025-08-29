@@ -2,7 +2,7 @@ package v1
 
 import (
 	"context"
-	wsapiv1 "website-operator/api/v1"
+	webv1 "website-operator/api/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -20,7 +20,7 @@ type WebsiteV1Client struct {
 
 func NewForConfig(c *rest.Config) (*WebsiteV1Client, error) {
 	config := *c
-	config.ContentConfig.GroupVersion = &schema.GroupVersion{Group: wsapiv1.GroupName, Version: wsapiv1.GroupVersion}
+	config.ContentConfig.GroupVersion = &schema.GroupVersion{Group: webv1.GroupName, Version: webv1.GroupVersion}
 	config.APIPath = "/apis"
 	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 	config.UserAgent = rest.DefaultKubernetesUserAgent()
@@ -41,10 +41,10 @@ func (c *WebsiteV1Client) Websites(namespace string) WebsiteInterface {
 }
 
 type WebsiteInterface interface {
-	List(ctx context.Context, opts metav1.ListOptions) (*wsapiv1.WebSiteList, error)
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*wsapiv1.WebSite, error)
-	Create(ctx context.Context, site *wsapiv1.WebSite, opts metav1.CreateOptions) (*wsapiv1.WebSite, error)
-	Update(ctx context.Context, site *wsapiv1.WebSite, opts metav1.UpdateOptions) (*wsapiv1.WebSite, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*webv1.WebSiteList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*webv1.WebSite, error)
+	Create(ctx context.Context, site *webv1.WebSite, opts metav1.CreateOptions) (*webv1.WebSite, error)
+	Update(ctx context.Context, site *webv1.WebSite, opts metav1.UpdateOptions) (*webv1.WebSite, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 }
 
@@ -53,8 +53,8 @@ type websiteClient struct {
 	ns         string
 }
 
-func (c *websiteClient) Get(ctx context.Context, name string, opts metav1.GetOptions) (*wsapiv1.WebSite, error) {
-	result := wsapiv1.WebSite{}
+func (c *websiteClient) Get(ctx context.Context, name string, opts metav1.GetOptions) (*webv1.WebSite, error) {
+	result := webv1.WebSite{}
 	err := c.restClient.
 		Get().
 		Namespace(c.ns).
@@ -67,8 +67,8 @@ func (c *websiteClient) Get(ctx context.Context, name string, opts metav1.GetOpt
 	return &result, err
 }
 
-func (c *websiteClient) Create(ctx context.Context, website *wsapiv1.WebSite, opts metav1.CreateOptions) (*wsapiv1.WebSite, error) {
-	result := wsapiv1.WebSite{}
+func (c *websiteClient) Create(ctx context.Context, website *webv1.WebSite, opts metav1.CreateOptions) (*webv1.WebSite, error) {
+	result := webv1.WebSite{}
 	err := c.restClient.
 		Post().
 		Namespace(c.ns).
@@ -81,8 +81,8 @@ func (c *websiteClient) Create(ctx context.Context, website *wsapiv1.WebSite, op
 	return &result, err
 }
 
-func (c *websiteClient) Update(ctx context.Context, website *wsapiv1.WebSite, opts metav1.UpdateOptions) (*wsapiv1.WebSite, error) {
-	result := wsapiv1.WebSite{}
+func (c *websiteClient) Update(ctx context.Context, website *webv1.WebSite, opts metav1.UpdateOptions) (*webv1.WebSite, error) {
+	result := webv1.WebSite{}
 	err := c.restClient.
 		Put().
 		Namespace(c.ns).
@@ -109,8 +109,8 @@ func (c *websiteClient) Delete(ctx context.Context, name string, opts metav1.Del
 	return err
 }
 
-func (c *websiteClient) List(ctx context.Context, opts metav1.ListOptions) (*wsapiv1.WebSiteList, error) {
-	result := wsapiv1.WebSiteList{}
+func (c *websiteClient) List(ctx context.Context, opts metav1.ListOptions) (*webv1.WebSiteList, error) {
+	result := webv1.WebSiteList{}
 	err := c.restClient.
 		Get().
 		Namespace(c.ns).
