@@ -7,6 +7,7 @@ import (
 
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,11 +33,6 @@ func NewWebsiteReconciler(mgr manager.Manager, clientset *kubernetes.Clientset) 
 }
 
 func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	siteName := "website-" + req.Name
-	log := log.FromContext(ctx).WithValues("siteName", siteName)
-
-	ingressClient := r.kubeClient.NetworkingV1().Ingresses(req.Namespace)
-
 	website, err := r.getWebsite(ctx, req)
 	if r.needsFinalizeWebsite(err) {
 		return r.finalizeWebsite(ctx, req)
@@ -54,35 +50,9 @@ func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if err != nil && errors.IsNotFound(err) {
-		ingressObject := CreateIngressObj(siteName, website.Spec)
-		ingressObject, err = ingressClient.Create(ctx, ingressObject, metav1.CreateOptions{})
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("couldn't create ingress: %s", err)
-		}
-
-		log.Info("new ingress created for website, exposed now via hostname", "hostname", website.Spec.Hostname)
-
-		return ctrl.Result{}, nil
+	if err = r.ensureIngress(ctx, req, website); err != nil {
+		return ctrl.Result{}, err
 	}
-
-	// look up hostname change
-	ingressSpec, err := ingressClient.Get(ctx, IngressObjectName(siteName), metav1.GetOptions{})
-	if err == nil {
-		if ingressSpec.Spec.Rules[0].Host != website.Spec.Hostname {
-			log.Info("ingress spec hostname need update")
-			ingressSpec.Spec.Rules[0].Host = website.Spec.Hostname
-
-			_, err = ingressClient.Update(ctx, ingressSpec, metav1.UpdateOptions{})
-			if err != nil {
-				return ctrl.Result{}, fmt.Errorf("couldn't update ingress spec: %s", err)
-			}
-
-			log.Info("ingress spec updated")
-		}
-	}
-
-	log.Info("website is up-to-date")
 
 	return ctrl.Result{}, nil
 }
@@ -103,6 +73,8 @@ func (r *WebsiteReconciler) needsFinalizeWebsite(err error) bool {
 
 func (r *WebsiteReconciler) finalizeWebsite(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	siteName := r.siteName(req)
+	log := log.FromContext(ctx)
+
 	deploymentsClient := r.kubeClient.AppsV1().Deployments(req.Namespace)
 	cmClient := r.kubeClient.CoreV1().ConfigMaps(req.Namespace)
 	svcClient := r.kubeClient.CoreV1().Services(req.Namespace)
@@ -110,26 +82,33 @@ func (r *WebsiteReconciler) finalizeWebsite(ctx context.Context, req ctrl.Reques
 
 	err := deploymentsClient.Delete(ctx, DeploymentObjectName(siteName), metav1.DeleteOptions{})
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("couldn't delete deployment: %s", err)
+		return ctrl.Result{}, fmt.Errorf("couldn't finalized deployment: %s", err)
 	}
+	log.Info("finalized deployment for website")
 	err = cmClient.Delete(ctx, ConfigMapObjectName(siteName), metav1.DeleteOptions{})
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("couldn't delete configmap: %s", err)
+		return ctrl.Result{}, fmt.Errorf("couldn't finalized configmap: %s", err)
 	}
+	log.Info("finalized configmap for website")
+
 	err = svcClient.Delete(ctx, ServiceObjectName(siteName), metav1.DeleteOptions{})
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("couldn't delete service: %s", err)
+		return ctrl.Result{}, fmt.Errorf("couldn't finalized service: %s", err)
 	}
+	log.Info("finalized service for website")
+
 	err = ingressClient.Delete(ctx, IngressObjectName(siteName), metav1.DeleteOptions{})
 	if err != nil {
-		return ctrl.Result{}, fmt.Errorf("couldn't delete ingress: %s", err)
+		return ctrl.Result{}, fmt.Errorf("couldn't finalized ingress: %s", err)
 	}
+	log.Info("finalized ingress for website")
+
 	return ctrl.Result{}, err
 }
 
 func (r *WebsiteReconciler) ensureDeployment(ctx context.Context, req ctrl.Request, website *wsapiv1.WebSite) error {
 	siteName := r.siteName(req)
-	log := log.FromContext(ctx).WithValues("siteName", siteName)
+	log := log.FromContext(ctx)
 	deploymentsClient := r.kubeClient.AppsV1().Deployments(req.Namespace)
 
 	deployment, err := deploymentsClient.Get(ctx, DeploymentObjectName(siteName), metav1.GetOptions{})
@@ -165,7 +144,7 @@ func (r *WebsiteReconciler) ensureDeploymentSpec(deployment *v1.Deployment, webs
 
 func (r *WebsiteReconciler) ensureConfigMap(ctx context.Context, req ctrl.Request, website *wsapiv1.WebSite) error {
 	siteName := r.siteName(req)
-	log := log.FromContext(ctx).WithValues("siteName", siteName)
+	log := log.FromContext(ctx)
 
 	cmClient := r.kubeClient.CoreV1().ConfigMaps(req.Namespace)
 
@@ -200,7 +179,7 @@ func (r *WebsiteReconciler) ensureConfigMapSpec(confMap *corev1.ConfigMap, websi
 
 func (r *WebsiteReconciler) ensureService(ctx context.Context, req ctrl.Request) error {
 	siteName := r.siteName(req)
-	log := log.FromContext(ctx).WithValues("siteName", siteName)
+	log := log.FromContext(ctx)
 
 	svcClient := r.kubeClient.CoreV1().Services(req.Namespace)
 
@@ -219,4 +198,40 @@ func (r *WebsiteReconciler) ensureService(ctx context.Context, req ctrl.Request)
 	// service does not need update because website spec does not influence service
 
 	return nil
+}
+
+func (r *WebsiteReconciler) ensureIngress(ctx context.Context, req ctrl.Request, website *wsapiv1.WebSite) error {
+	siteName := r.siteName(req)
+	log := log.FromContext(ctx)
+
+	ingressClient := r.kubeClient.NetworkingV1().Ingresses(req.Namespace)
+
+	ingress, err := ingressClient.Get(ctx, IngressObjectName(siteName), metav1.GetOptions{})
+	if err != nil && errors.IsNotFound(err) {
+		ingressObject := CreateIngressObj(siteName, website.Spec)
+		ingressObject, err = ingressClient.Create(ctx, ingressObject, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("couldn't create ingress: %s", err)
+		}
+
+		log.Info("new ingress created for website, exposed now via hostname", "hostname", website.Spec.Hostname)
+
+		return nil
+	}
+
+	if r.ensureIngressSpec(ingress, website) {
+		_, err = ingressClient.Update(ctx, ingress, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("couldn't update ingress spec: %s", err)
+		}
+
+		log.Info("ingress spec updated")
+	}
+	return nil
+}
+
+func (r *WebsiteReconciler) ensureIngressSpec(ingress *netv1.Ingress, website *wsapiv1.WebSite) bool {
+	needsUpdate := ingress.Spec.Rules[0].Host != website.Spec.Hostname
+	ingress.Spec.Rules[0].Host = website.Spec.Hostname
+	return needsUpdate
 }
