@@ -1,4 +1,4 @@
-package internal
+package controller
 
 import (
 	"context"
@@ -18,21 +18,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
-type WebsiteReconciler struct {
+type WebsiteController struct {
 	client.Client
 	scheme     *runtime.Scheme
 	kubeClient *kubernetes.Clientset
 }
 
-func NewWebsiteReconciler(mgr manager.Manager, clientset *kubernetes.Clientset) *WebsiteReconciler {
-	return &WebsiteReconciler{
+func NewWebsiteController(mgr manager.Manager, clientset *kubernetes.Clientset) *WebsiteController {
+	return &WebsiteController{
 		Client:     mgr.GetClient(),
 		scheme:     mgr.GetScheme(),
 		kubeClient: clientset,
 	}
 }
 
-func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *WebsiteController) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	website, err := r.getWebsite(ctx, req)
 	if r.needsFinalizeWebsite(err) {
 		return r.finalizeWebsite(ctx, req)
@@ -57,21 +57,21 @@ func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
-func (r *WebsiteReconciler) siteName(req ctrl.Request) string {
+func (r *WebsiteController) siteName(req ctrl.Request) string {
 	return "website-" + req.Name
 }
 
-func (r *WebsiteReconciler) getWebsite(ctx context.Context, req ctrl.Request) (*webv1.WebSite, error) {
+func (r *WebsiteController) getWebsite(ctx context.Context, req ctrl.Request) (*webv1.WebSite, error) {
 	var website webv1.WebSite
 	err := r.Client.Get(ctx, req.NamespacedName, &website)
 	return &website, err
 }
 
-func (r *WebsiteReconciler) needsFinalizeWebsite(err error) bool {
+func (r *WebsiteController) needsFinalizeWebsite(err error) bool {
 	return err != nil && errors.IsNotFound(err)
 }
 
-func (r *WebsiteReconciler) finalizeWebsite(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *WebsiteController) finalizeWebsite(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	siteName := r.siteName(req)
 	log := log.FromContext(ctx)
 
@@ -106,7 +106,7 @@ func (r *WebsiteReconciler) finalizeWebsite(ctx context.Context, req ctrl.Reques
 	return ctrl.Result{}, err
 }
 
-func (r *WebsiteReconciler) ensureDeployment(ctx context.Context, req ctrl.Request, website *webv1.WebSite) error {
+func (r *WebsiteController) ensureDeployment(ctx context.Context, req ctrl.Request, website *webv1.WebSite) error {
 	siteName := r.siteName(req)
 	log := log.FromContext(ctx)
 	deploymentsClient := r.kubeClient.AppsV1().Deployments(req.Namespace)
@@ -135,14 +135,14 @@ func (r *WebsiteReconciler) ensureDeployment(ctx context.Context, req ctrl.Reque
 	return nil
 }
 
-func (r *WebsiteReconciler) ensureDeploymentSpec(deployment *v1.Deployment, website *webv1.WebSite) bool {
+func (r *WebsiteController) ensureDeploymentSpec(deployment *v1.Deployment, website *webv1.WebSite) bool {
 	needsUpdate := deployment.Spec.Template.Spec.Containers[0].Image != website.Spec.NginxImage
 
 	deployment.Spec.Template.Spec.Containers[0].Image = website.Spec.NginxImage
 	return needsUpdate
 }
 
-func (r *WebsiteReconciler) ensureConfigMap(ctx context.Context, req ctrl.Request, website *webv1.WebSite) error {
+func (r *WebsiteController) ensureConfigMap(ctx context.Context, req ctrl.Request, website *webv1.WebSite) error {
 	siteName := r.siteName(req)
 	log := log.FromContext(ctx)
 
@@ -171,13 +171,13 @@ func (r *WebsiteReconciler) ensureConfigMap(ctx context.Context, req ctrl.Reques
 	return nil
 }
 
-func (r *WebsiteReconciler) ensureConfigMapSpec(confMap *corev1.ConfigMap, website *webv1.WebSite) bool {
+func (r *WebsiteController) ensureConfigMapSpec(confMap *corev1.ConfigMap, website *webv1.WebSite) bool {
 	needsUpdate := confMap.Data["index.html"] != website.Spec.HtmlContent
 	confMap.Data["index.html"] = website.Spec.HtmlContent
 	return needsUpdate
 }
 
-func (r *WebsiteReconciler) ensureService(ctx context.Context, req ctrl.Request) error {
+func (r *WebsiteController) ensureService(ctx context.Context, req ctrl.Request) error {
 	siteName := r.siteName(req)
 	log := log.FromContext(ctx)
 
@@ -200,7 +200,7 @@ func (r *WebsiteReconciler) ensureService(ctx context.Context, req ctrl.Request)
 	return nil
 }
 
-func (r *WebsiteReconciler) ensureIngress(ctx context.Context, req ctrl.Request, website *webv1.WebSite) error {
+func (r *WebsiteController) ensureIngress(ctx context.Context, req ctrl.Request, website *webv1.WebSite) error {
 	siteName := r.siteName(req)
 	log := log.FromContext(ctx)
 
@@ -230,7 +230,7 @@ func (r *WebsiteReconciler) ensureIngress(ctx context.Context, req ctrl.Request,
 	return nil
 }
 
-func (r *WebsiteReconciler) ensureIngressSpec(ingress *netv1.Ingress, website *webv1.WebSite) bool {
+func (r *WebsiteController) ensureIngressSpec(ingress *netv1.Ingress, website *webv1.WebSite) bool {
 	needsUpdate := ingress.Spec.Rules[0].Host != website.Spec.Hostname
 	ingress.Spec.Rules[0].Host = website.Spec.Hostname
 	return needsUpdate

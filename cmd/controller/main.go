@@ -4,6 +4,7 @@ import (
 	"os"
 	webv1 "website-operator/api/v1"
 	"website-operator/internal"
+	"website-operator/internal/controller"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -33,7 +34,7 @@ func main() {
 
 	err = ctrl.NewControllerManagedBy(mgr).
 		For(&webv1.WebSite{}).
-		Complete(internal.NewWebsiteReconciler(mgr, clientset))
+		Complete(controller.NewWebsiteController(mgr, clientset))
 	if err != nil {
 		log.Error(err, "unable to create controller")
 		os.Exit(1)

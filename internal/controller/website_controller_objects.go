@@ -1,7 +1,8 @@
-package internal
+package controller
 
 import (
 	webv1 "website-operator/api/v1"
+	"website-operator/internal"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -41,7 +42,7 @@ func CreateIngressObj(name string, spec webv1.WebSiteSpec) *netv1.Ingress {
 			Name: IngressObjectName(name),
 		},
 		Spec: netv1.IngressSpec{
-			IngressClassName: Ptr(ingressClassName),
+			IngressClassName: internal.Ptr(ingressClassName),
 			Rules: []netv1.IngressRule{
 				{
 					Host: spec.Hostname,
@@ -50,7 +51,7 @@ func CreateIngressObj(name string, spec webv1.WebSiteSpec) *netv1.Ingress {
 							Paths: []netv1.HTTPIngressPath{
 								{
 									Path:     ingressPath,
-									PathType: Ptr(netv1.PathTypePrefix),
+									PathType: internal.Ptr(netv1.PathTypePrefix),
 									Backend: netv1.IngressBackend{
 										Service: &netv1.IngressServiceBackend{
 											Name: ServiceObjectName(name),
@@ -100,7 +101,7 @@ func CreateDeploymentObject(name string, spec webv1.WebSiteSpec) *appsv1.Deploym
 			Name: DeploymentObjectName(name),
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: Ptr(int32(websiteReplica)),
+			Replicas: internal.Ptr(int32(websiteReplica)),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"apptype": "website",
