@@ -6,6 +6,7 @@ import (
 	wsapiv1 "website-operator/api/v1"
 
 	v1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,7 +35,6 @@ func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	siteName := "website-" + req.Name
 	log := log.FromContext(ctx).WithValues("siteName", siteName)
 
-	cmClient := r.kubeClient.CoreV1().ConfigMaps(req.Namespace)
 	svcClient := r.kubeClient.CoreV1().Services(req.Namespace)
 	ingressClient := r.kubeClient.NetworkingV1().Ingresses(req.Namespace)
 
@@ -47,14 +47,11 @@ func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	if err != nil && errors.IsNotFound(err) {
-		// create new website object
-		cmObj := CreateConfigMapObject(siteName, website.Spec)
-		_, err = cmClient.Create(ctx, cmObj, metav1.CreateOptions{})
-		if err != nil && !errors.IsAlreadyExists(err) {
-			return ctrl.Result{}, fmt.Errorf("couldn't create configmap: %s", err)
-		}
+	if err = r.ensureConfigMap(ctx, req, website); err != nil {
+		return ctrl.Result{}, err
+	}
 
+	if err != nil && errors.IsNotFound(err) {
 		svcObject := CreateServiceObject(siteName)
 		svcObject, err = svcClient.Create(ctx, svcObject, metav1.CreateOptions{})
 		if err != nil {
@@ -88,21 +85,6 @@ func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 			log.Info("ingress spec updated")
 		}
-	}
-
-	// look up config map differences in HTML contents
-	confMap, err := cmClient.Get(ctx, ConfigMapObjectName(siteName), metav1.GetOptions{})
-	if err == nil &&
-		confMap.Data["index.html"] != website.Spec.HtmlContent {
-		// config map differs, update required
-
-		confMap.Data["index.html"] = website.Spec.HtmlContent
-
-		_, err = cmClient.Update(ctx, confMap, metav1.UpdateOptions{})
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("couldn't update ConfigMap: %s", err)
-		}
-		log.Info("website contents updated via configmap")
 	}
 
 	log.Info("website is up-to-date")
@@ -164,6 +146,7 @@ func (r *WebsiteReconciler) ensureDeployment(ctx context.Context, req ctrl.Reque
 		}
 
 		log.Info("new deployment created for website")
+		return nil
 	}
 
 	// look up nginx image change
@@ -182,5 +165,40 @@ func (r *WebsiteReconciler) ensureDeploymentSpec(deployment *v1.Deployment, webs
 	needsUpdate := deployment.Spec.Template.Spec.Containers[0].Image != website.Spec.NginxImage
 
 	deployment.Spec.Template.Spec.Containers[0].Image = website.Spec.NginxImage
+	return needsUpdate
+}
+
+func (r *WebsiteReconciler) ensureConfigMap(ctx context.Context, req ctrl.Request, website *wsapiv1.WebSite) error {
+	siteName := r.siteName(req)
+	log := log.FromContext(ctx).WithValues("siteName", siteName)
+
+	cmClient := r.kubeClient.CoreV1().ConfigMaps(req.Namespace)
+
+	// look up config map differences in HTML contents
+	confMap, err := cmClient.Get(ctx, ConfigMapObjectName(siteName), metav1.GetOptions{})
+
+	if err != nil && errors.IsNotFound(err) {
+		cmObj := CreateConfigMapObject(siteName, website.Spec)
+		_, err = cmClient.Create(ctx, cmObj, metav1.CreateOptions{})
+		if err != nil && !errors.IsAlreadyExists(err) {
+			return fmt.Errorf("couldn't create configmap: %s", err)
+		}
+		log.Info("new configmap created for website")
+		return nil
+	}
+
+	if r.ensureConfigMapSpec(confMap, website) {
+		_, err = cmClient.Update(ctx, confMap, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("couldn't update ConfigMap: %s", err)
+		}
+		log.Info("website contents updated via configmap")
+	}
+	return nil
+}
+
+func (r *WebsiteReconciler) ensureConfigMapSpec(confMap *corev1.ConfigMap, website *wsapiv1.WebSite) bool {
+	needsUpdate := confMap.Data["index.html"] != website.Spec.HtmlContent
+	confMap.Data["index.html"] = website.Spec.HtmlContent
 	return needsUpdate
 }
