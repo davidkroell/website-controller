@@ -5,6 +5,7 @@ import (
 	"fmt"
 	wsapiv1 "website-operator/api/v1"
 
+	v1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,17 +34,19 @@ func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	siteName := "website-" + req.Name
 	log := log.FromContext(ctx).WithValues("siteName", siteName)
 
-	deploymentsClient := r.kubeClient.AppsV1().Deployments(req.Namespace)
 	cmClient := r.kubeClient.CoreV1().ConfigMaps(req.Namespace)
 	svcClient := r.kubeClient.CoreV1().Services(req.Namespace)
 	ingressClient := r.kubeClient.NetworkingV1().Ingresses(req.Namespace)
 
 	website, err := r.getWebsite(ctx, req)
 	if r.needsFinalizeWebsite(err) {
-		return r.finalizeWebsite(ctx, req, siteName)
+		return r.finalizeWebsite(ctx, req)
 	}
 
-	deployment, err := deploymentsClient.Get(ctx, DeploymentObjectName(siteName), metav1.GetOptions{})
+	if err = r.ensureDeployment(ctx, req, website); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	if err != nil && errors.IsNotFound(err) {
 		// create new website object
 		cmObj := CreateConfigMapObject(siteName, website.Spec)
@@ -51,14 +54,6 @@ func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if err != nil && !errors.IsAlreadyExists(err) {
 			return ctrl.Result{}, fmt.Errorf("couldn't create configmap: %s", err)
 		}
-
-		deploymentObj := CreateDeploymentObject(siteName, website.Spec)
-		_, err := deploymentsClient.Create(ctx, deploymentObj, metav1.CreateOptions{})
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("couldn't create deployment: %s", err)
-		}
-
-		log.Info("new deployment created for website")
 
 		svcObject := CreateServiceObject(siteName)
 		svcObject, err = svcClient.Create(ctx, svcObject, metav1.CreateOptions{})
@@ -77,19 +72,6 @@ func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		log.Info("new ingress created for website, exposed now via hostname", "hostname", website.Spec.Hostname)
 
 		return ctrl.Result{}, nil
-	}
-
-	// look up nginx image change
-	if deployment.Spec.Template.Spec.Containers[0].Image != website.Spec.NginxImage {
-		// update deployment
-		deployment.Spec.Template.Spec.Containers[0].Image = website.Spec.NginxImage
-
-		deployment, err = deploymentsClient.Update(ctx, deployment, metav1.UpdateOptions{})
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("couldn't update deployment: %s", err)
-		}
-
-		log.Info("updated deployment")
 	}
 
 	// look up hostname change
@@ -128,6 +110,10 @@ func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
+func (r *WebsiteReconciler) siteName(req ctrl.Request) string {
+	return "website-" + req.Name
+}
+
 func (r *WebsiteReconciler) getWebsite(ctx context.Context, req ctrl.Request) (*wsapiv1.WebSite, error) {
 	var website wsapiv1.WebSite
 	err := r.Client.Get(ctx, req.NamespacedName, &website)
@@ -138,7 +124,8 @@ func (r *WebsiteReconciler) needsFinalizeWebsite(err error) bool {
 	return err != nil && errors.IsNotFound(err)
 }
 
-func (r *WebsiteReconciler) finalizeWebsite(ctx context.Context, req ctrl.Request, siteName string) (ctrl.Result, error) {
+func (r *WebsiteReconciler) finalizeWebsite(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	siteName := r.siteName(req)
 	deploymentsClient := r.kubeClient.AppsV1().Deployments(req.Namespace)
 	cmClient := r.kubeClient.CoreV1().ConfigMaps(req.Namespace)
 	svcClient := r.kubeClient.CoreV1().Services(req.Namespace)
@@ -161,4 +148,39 @@ func (r *WebsiteReconciler) finalizeWebsite(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, fmt.Errorf("couldn't delete ingress: %s", err)
 	}
 	return ctrl.Result{}, err
+}
+
+func (r *WebsiteReconciler) ensureDeployment(ctx context.Context, req ctrl.Request, website *wsapiv1.WebSite) error {
+	siteName := r.siteName(req)
+	log := log.FromContext(ctx).WithValues("siteName", siteName)
+	deploymentsClient := r.kubeClient.AppsV1().Deployments(req.Namespace)
+
+	deployment, err := deploymentsClient.Get(ctx, DeploymentObjectName(siteName), metav1.GetOptions{})
+	if err != nil && errors.IsNotFound(err) {
+		deploymentObj := CreateDeploymentObject(siteName, website.Spec)
+		_, err := deploymentsClient.Create(ctx, deploymentObj, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("couldn't create deployment: %s", err)
+		}
+
+		log.Info("new deployment created for website")
+	}
+
+	// look up nginx image change
+	if r.ensureDeploymentSpec(deployment, website) {
+		deployment, err = deploymentsClient.Update(ctx, deployment, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("couldn't update deployment: %s", err)
+		}
+		log.Info("updated deployment")
+	}
+
+	return nil
+}
+
+func (r *WebsiteReconciler) ensureDeploymentSpec(deployment *v1.Deployment, website *wsapiv1.WebSite) bool {
+	needsUpdate := deployment.Spec.Template.Spec.Containers[0].Image != website.Spec.NginxImage
+
+	deployment.Spec.Template.Spec.Containers[0].Image = website.Spec.NginxImage
+	return needsUpdate
 }
