@@ -35,7 +35,6 @@ func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	siteName := "website-" + req.Name
 	log := log.FromContext(ctx).WithValues("siteName", siteName)
 
-	svcClient := r.kubeClient.CoreV1().Services(req.Namespace)
 	ingressClient := r.kubeClient.NetworkingV1().Ingresses(req.Namespace)
 
 	website, err := r.getWebsite(ctx, req)
@@ -51,15 +50,11 @@ func (r *WebsiteReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	if err = r.ensureService(ctx, req); err != nil {
+		return ctrl.Result{}, err
+	}
+
 	if err != nil && errors.IsNotFound(err) {
-		svcObject := CreateServiceObject(siteName)
-		svcObject, err = svcClient.Create(ctx, svcObject, metav1.CreateOptions{})
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("couldn't create service: %s", err)
-		}
-
-		log.Info("new service created for website")
-
 		ingressObject := CreateIngressObj(siteName, website.Spec)
 		ingressObject, err = ingressClient.Create(ctx, ingressObject, metav1.CreateOptions{})
 		if err != nil {
@@ -201,4 +196,27 @@ func (r *WebsiteReconciler) ensureConfigMapSpec(confMap *corev1.ConfigMap, websi
 	needsUpdate := confMap.Data["index.html"] != website.Spec.HtmlContent
 	confMap.Data["index.html"] = website.Spec.HtmlContent
 	return needsUpdate
+}
+
+func (r *WebsiteReconciler) ensureService(ctx context.Context, req ctrl.Request) error {
+	siteName := r.siteName(req)
+	log := log.FromContext(ctx).WithValues("siteName", siteName)
+
+	svcClient := r.kubeClient.CoreV1().Services(req.Namespace)
+
+	_, err := svcClient.Get(ctx, ServiceObjectName(siteName), metav1.GetOptions{})
+	if err != nil && errors.IsNotFound(err) {
+		svcObject := CreateServiceObject(siteName)
+		svcObject, err = svcClient.Create(ctx, svcObject, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("couldn't create service: %s", err)
+		}
+
+		log.Info("new service created for website")
+		return nil
+	}
+
+	// service does not need update because website spec does not influence service
+
+	return nil
 }
