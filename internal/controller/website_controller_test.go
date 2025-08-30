@@ -164,6 +164,18 @@ func TestWebsiteCreatesResources(t *testing.T) {
 			cm)
 		return err == nil
 	}, 10*time.Second, 500*time.Millisecond).Should(BeTrue())
+	Expect(cm).To(Equal(&corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ConfigMap",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "website-test-site-cm",
+		},
+		Data: map[string]string{
+			"index.html": "test-html-content",
+		},
+	}))
 
 	// --- Assert Service created ---
 	svc := &corev1.Service{}
@@ -173,6 +185,7 @@ func TestWebsiteCreatesResources(t *testing.T) {
 			svc)
 		return err == nil
 	}, 10*time.Second, 500*time.Millisecond).Should(BeTrue())
+	// TODO assert service object
 
 	// --- Assert Ingress created ---
 	ing := &networkingv1.Ingress{}
@@ -182,5 +195,5 @@ func TestWebsiteCreatesResources(t *testing.T) {
 			ing)
 		return err == nil
 	}, 10*time.Second, 500*time.Millisecond).Should(BeTrue())
-
+	// TODO assert ingress object
 }
