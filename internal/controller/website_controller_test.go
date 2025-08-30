@@ -72,6 +72,7 @@ func TestMain(m *testing.M) {
 
 func TestWebsiteCreatesResources(t *testing.T) {
 	g := NewWithT(t)
+	defer GinkgoRecover()
 	ctrl.SetLogger(zap.New())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -113,10 +114,6 @@ func TestWebsiteCreatesResources(t *testing.T) {
 	err = k8sClient.Create(ctx, website)
 	g.Expect(err).ToNot(HaveOccurred())
 
-	deployList := &appsv1.DeploymentList{}
-	err = k8sClient.List(ctx, deployList)
-	g.Expect(err).ToNot(HaveOccurred())
-
 	// --- Assert Deployment created ---
 	deploy := &appsv1.Deployment{}
 	g.Eventually(func() bool {
@@ -125,8 +122,41 @@ func TestWebsiteCreatesResources(t *testing.T) {
 			deploy)
 		return err == nil
 	}, 10*time.Second, 500*time.Millisecond).Should(BeTrue())
+	Expect(deploy.Spec.Replicas).To(Equal(1))
+	Expect(deploy.CreationTimestamp).To(BeTemporally("~", time.Now(), time.Minute))
+	Expect(deploy.Spec.Selector).To(HaveKeyWithValue("apptype", "website"))
+	Expect(deploy.Spec.Template.ObjectMeta.Labels).To(
+		And(HaveKeyWithValue("apptype", "website"), HaveKeyWithValue("anexia.com/expose", "website-test-site-deploy")))
+	Expect(deploy.Spec.Template.Spec.Containers).To(HaveLen(1))
+	Expect(deploy.Spec.Template.Spec.Containers).To(ContainElement(corev1.Container{
+		Name:  "website",
+		Image: "docker.io/nginx:1.28",
+		Ports: []corev1.ContainerPort{
+			{
+				Name:          "http-svc-port",
+				Protocol:      corev1.ProtocolTCP,
+				ContainerPort: nginxPort,
+			},
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "contents",
+				MountPath: "/usr/share/nginx/html",
+			},
+		},
+	}))
+	Expect(deploy.Spec.Template.Spec.Volumes).To(ContainElement(corev1.Volume{
+		Name: "contents",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: "website-test-site-cm",
+				},
+			},
+		},
+	}))
 
-	// --- Assert Service created ---
+	// --- Assert configmap created ---
 	cm := &corev1.ConfigMap{}
 	g.Eventually(func() bool {
 		err := k8sClient.Get(ctx,
