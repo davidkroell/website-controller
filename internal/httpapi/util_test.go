@@ -3,14 +3,10 @@ package httpapi
 import (
 	"crypto/rand"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
-	"testing"
 	"time"
 	"website-operator/httpapiclient"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func genRandom(prefix string) string {
@@ -60,13 +56,6 @@ func waitUntilHttpFulfills(url string, d time.Duration, predicate func(resp *htt
 			backoff = 5 * time.Second
 		}
 	}
-}
-
-func assertResponseHasContent(t *testing.T, err error, resp *http.Response, content string) {
-	b, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	respContent := string(b)
-	assert.Equal(t, content, respContent)
 }
 
 func getWebsiteByName(s httpapiclient.WebsiteListDTO, name string) *httpapiclient.WebsiteDTO {
