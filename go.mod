@@ -1,4 +1,4 @@
-module website-operator
+module github.com/davidkroell/website-operator
 
 go 1.24.0
 
